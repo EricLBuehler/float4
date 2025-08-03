@@ -1,0 +1,14 @@
+[package]
+name = "float4"
+version = "0.1.0"
+authors = ["Eric Buehler <ericlbuehler@gmail.com>"]
+edition = "2024"
+license = "MIT"
+description = "MXFP4-compatible 4-bit floating point types and block formats for Rust."
+repository = "https://github.com/EricLBuehler/float4"
+documentation = "https://docs.rs/float4"
+readme = "README.md"
+keywords = ["float", "fp4", "quantization", "machine-learning", "mxfp4"]
+categories = ["mathematics", "science", "encoding"]
+
+[dependencies]
