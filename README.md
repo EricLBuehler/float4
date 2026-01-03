@@ -1,6 +1,6 @@
 # `float4`
 
-**MXFP4-compatible 4-bit floating point types and block formats for Rust.**
+**MXFP4 and NVFP4-compatible 4-bit floating point types and block formats for Rust.**
 
 This crate provides low-precision floating-point types following the OCP MX specification, designed for efficient storage and computation in machine learning applications where extreme quantization is beneficial.
 
@@ -9,6 +9,7 @@ This crate provides low-precision floating-point types following the OCP MX spec
 - **`F4E2M1`**: 4-bit floating-point with 2 exponent bits and 1 mantissa bit
 - **`E8M0`**: 8-bit scale factor representing powers of two (2^-127 to 2^127)
 - **`MXFP4Block`**: Block format storing 32 F4E2M1 values with a shared E8M0 scale
+- **`NVFP4Block`**: Block format storing 16 F4E2M1 values with a shared E4M3 scale and global scale
 
 ## Features
 
@@ -52,7 +53,7 @@ assert_eq!(F4E2M1::MIN.to_f64(), -6.0);
 assert_eq!(F4E2M1::EPSILON.to_f64(), 0.5);
 ```
 
-### Block Format Example
+### MXFP4 Block Format Example
 
 ```rust
 use float4::{F4E2M1, E8M0, MXFP4Block};
@@ -142,4 +143,51 @@ use float4::F4E2M1;
 assert_eq!(F4E2M1::from_f64(f64::INFINITY).to_f64(), 6.0);
 assert_eq!(F4E2M1::from_f64(f64::NEG_INFINITY).to_f64(), -6.0);
 assert_eq!(F4E2M1::from_f64(f64::NAN).to_f64(), 6.0);
+```
+
+### NVFP4 Block Format Example
+
+```rust
+use float4::{F4E2M1, NVFP4Block};
+
+// Original data
+let data = vec![1.5, -2.0, 0.5, 3.0, 1.0, -0.5];
+
+let global_scale=NVFP4Block::global_scale_from_f32_slice(&data);
+let block_scale = NVFP4Block::block_scale_from_f32_slice(&data, global_scale);
+assert_eq!(global_scale, 0.0012019231);
+assert_eq!(block_scale.to_f64(), 416.0);
+
+// Quantize to F4E2M1
+let mut quantized = [F4E2M1::from_f64(0.0); 16];
+for (i, &value) in data.iter().enumerate() {
+    quantized[i] = F4E2M1::from_f64(value as f64  / (block_scale.to_f64()  *global_scale as f64));
+}
+
+let block = NVFP4Block::new_from_f32_slice(quantized, block_scale);
+
+// Retrieve values
+let restored = block.to_f32_array(global_scale);
+assert_eq!(restored[0], 1.5);
+assert_eq!(restored[1], -2.0);
+```
+
+
+```rust
+use float4::{F4E2M1, NVFP4Block};
+
+let mut values = [0f32; 16];
+values[0] = 15.0;
+values[1] = 30.0;
+values[2] = 120.0;
+values[3] = 180.0;
+
+let global_scale = NVFP4Block::global_scale_from_f32_slice(&values);
+let block = NVFP4Block::from_f32_slice(values, global_scale);
+let result = block.to_f32_array(global_scale);
+
+assert_eq!(result[0], 15.0);
+assert_eq!(result[1], 30.0);
+assert_eq!(result[2], 120.0);
+assert_eq!(result[3], 180.0);
 ```

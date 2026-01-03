@@ -12,3 +12,4 @@ keywords = ["float", "fp4", "quantization", "machine-learning", "mxfp4"]
 categories = ["mathematics", "science", "encoding"]
 
 [dependencies]
+float8 = { version = "0.5.0" }
