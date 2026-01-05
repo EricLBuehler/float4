@@ -270,11 +270,6 @@ impl NVFP4Block {
             let val2b = values[idx + 1] / (global_scale * block_scale_f32);
             let val1 = F4E2M1::from_f64(val1a as f64);
             let val2 = F4E2M1::from_f64(val2b as f64);
-
-            let o1 = val1.to_f64();
-            let o2 = val2.to_f64();
-            let t1 = val1.to_f64() as f32 * global_scale * block_scale_f32;
-            let t2 = val2.to_f64() as f32 * global_scale * block_scale_f32;
             // First value goes in lower 4 bits
             let low = val1.to_bits() & 0x0F;
             // Second value goes in upper 4 bits
