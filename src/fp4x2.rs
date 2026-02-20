@@ -137,6 +137,34 @@ mod tests {
     }
 
     #[test]
+    fn exhaustive_new_roundtrip() {
+        for lo_bits in 0u8..16 {
+            for hi_bits in 0u8..16 {
+                let lo = F4E2M1::from_bits(lo_bits);
+                let hi = F4E2M1::from_bits(hi_bits);
+                let packed = F4E2M1x2::new(lo, hi);
+                assert_eq!(
+                    packed.lo().to_bits(),
+                    lo_bits,
+                    "lo mismatch for new({lo_bits:#X}, {hi_bits:#X})"
+                );
+                assert_eq!(
+                    packed.hi().to_bits(),
+                    hi_bits,
+                    "hi mismatch for new({lo_bits:#X}, {hi_bits:#X})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn default_is_zero() {
+        let d = F4E2M1x2::default();
+        assert_eq!(d, F4E2M1x2::ZERO);
+        assert_eq!(d.to_bits(), 0x00);
+    }
+
+    #[test]
     fn display() {
         let packed = F4E2M1x2::new(F4E2M1::from_f64(1.5), F4E2M1::from_f64(-2.0));
         assert_eq!(format!("{packed}"), "F4E2M1x2(1.5, -2)");
