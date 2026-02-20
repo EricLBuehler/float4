@@ -3,7 +3,7 @@
 //! This module provides the MXFP4Block type for efficient storage of multiple
 //! 4-bit floating-point values with a shared scale factor.
 
-use crate::{E8M0, F4E2M1};
+use crate::{E8M0, F4E2M1, F4E2M1x2};
 
 /// A compressed block of 32 F4E2M1 values with a shared E8M0 scale factor.
 ///
@@ -94,8 +94,8 @@ use crate::{E8M0, F4E2M1};
 /// lower nibble and odd-indexed values in the upper nibble.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MXFP4Block {
-    /// 16 bytes containing 32 packed F4E2M1 values (2 per byte).
-    block: [u8; 16],
+    /// 16 packed pairs containing 32 F4E2M1 values (2 per byte).
+    block: [F4E2M1x2; 16],
     /// Shared E8M0 scale factor for all values in the block.
     scale: E8M0,
 }
@@ -137,16 +137,10 @@ impl MXFP4Block {
     /// ```
     #[inline(always)]
     pub fn from_f32_slice(xs: [F4E2M1; 32], scale: E8M0) -> Self {
-        let mut block = [0u8; 16];
+        let mut block = [F4E2M1x2::ZERO; 16];
 
-        // Pack two F4E2M1 values into each byte
-        for (i, byte) in block.iter_mut().enumerate() {
-            let idx = i * 2;
-            // First value goes in lower 4 bits
-            let low = xs[idx].to_bits() & 0x0F;
-            // Second value goes in upper 4 bits
-            let high = (xs[idx + 1].to_bits() & 0x0F) << 4;
-            *byte = low | high;
+        for (i, pair) in block.iter_mut().enumerate() {
+            *pair = F4E2M1x2::new(xs[i * 2], xs[i * 2 + 1]);
         }
 
         Self { block, scale }
@@ -178,12 +172,8 @@ impl MXFP4Block {
         let mut result = [F4E2M1::from_bits(0); 32];
 
         for i in 0..16 {
-            let byte = self.block[i];
-            let idx = i * 2;
-            // Extract lower 4 bits
-            result[idx] = F4E2M1::from_bits(byte & 0x0F);
-            // Extract upper 4 bits
-            result[idx + 1] = F4E2M1::from_bits((byte >> 4) & 0x0F);
+            result[i * 2] = self.block[i].lo();
+            result[i * 2 + 1] = self.block[i].hi();
         }
 
         result
@@ -328,12 +318,12 @@ mod tests {
         let block = MXFP4Block::from_f32_slice(values, scale);
 
         // Check packed bytes
-        assert_eq!(block.block[0], 0xA5); // 1010_0101
-        assert_eq!(block.block[1], 0xC3); // 1100_0011
+        assert_eq!(block.block[0].to_bits(), 0xA5); // 1010_0101
+        assert_eq!(block.block[1].to_bits(), 0xC3); // 1100_0011
 
         // Remaining bytes should be 0
         for i in 2..16 {
-            assert_eq!(block.block[i], 0x00);
+            assert_eq!(block.block[i].to_bits(), 0x00);
         }
     }
 }

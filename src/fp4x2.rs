@@ -1,0 +1,144 @@
+//! Packed pair of F4E2M1 values in a single byte.
+//!
+//! This module provides the [`F4E2M1x2`] type, which stores two [`F4E2M1`] values
+//! in a single byte. This matches the layout used by NVIDIA's `__nv_fp4x2_e2m1`
+//! and enables correct `DeviceRepr` usage in `cudarc`.
+
+use crate::F4E2M1;
+
+/// Two [`F4E2M1`] values packed into a single byte.
+///
+/// The lower nibble (bits 3:0) holds the first value and the upper nibble
+/// (bits 7:4) holds the second value. This layout matches NVIDIA's
+/// `__nv_fp4x2_e2m1` format.
+///
+/// # Examples
+///
+/// ```
+/// use float4::{F4E2M1, F4E2M1x2};
+///
+/// let lo = F4E2M1::from_f64(1.5);
+/// let hi = F4E2M1::from_f64(-2.0);
+/// let packed = F4E2M1x2::new(lo, hi);
+///
+/// assert_eq!(packed.lo().to_f64(), 1.5);
+/// assert_eq!(packed.hi().to_f64(), -2.0);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[repr(transparent)]
+pub struct F4E2M1x2(u8);
+
+const _: () = assert!(std::mem::size_of::<F4E2M1x2>() == 1);
+
+impl F4E2M1x2 {
+    /// Two positive zeros.
+    pub const ZERO: Self = Self(0x00);
+
+    /// Packs two [`F4E2M1`] values into a single byte.
+    ///
+    /// `lo` occupies bits 3:0 and `hi` occupies bits 7:4.
+    #[inline(always)]
+    pub const fn new(lo: F4E2M1, hi: F4E2M1) -> Self {
+        Self((lo.to_bits() & 0x0F) | ((hi.to_bits() & 0x0F) << 4))
+    }
+
+    /// Wraps a raw byte directly.
+    #[inline(always)]
+    pub const fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    /// Returns the raw byte.
+    #[inline(always)]
+    pub const fn to_bits(self) -> u8 {
+        self.0
+    }
+
+    /// Extracts the lower nibble as an [`F4E2M1`].
+    #[inline(always)]
+    pub const fn lo(self) -> F4E2M1 {
+        F4E2M1::from_bits(self.0 & 0x0F)
+    }
+
+    /// Extracts the upper nibble as an [`F4E2M1`].
+    #[inline(always)]
+    pub const fn hi(self) -> F4E2M1 {
+        F4E2M1::from_bits((self.0 >> 4) & 0x0F)
+    }
+}
+
+impl From<(F4E2M1, F4E2M1)> for F4E2M1x2 {
+    #[inline]
+    fn from((lo, hi): (F4E2M1, F4E2M1)) -> Self {
+        Self::new(lo, hi)
+    }
+}
+
+impl From<F4E2M1x2> for (F4E2M1, F4E2M1) {
+    #[inline]
+    fn from(packed: F4E2M1x2) -> Self {
+        (packed.lo(), packed.hi())
+    }
+}
+
+impl std::fmt::Display for F4E2M1x2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "F4E2M1x2({}, {})",
+            self.lo().to_f64(),
+            self.hi().to_f64()
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exhaustive_roundtrip() {
+        for byte in 0..=u8::MAX {
+            let packed = F4E2M1x2::from_bits(byte);
+            let reconstructed =
+                (packed.lo().to_bits() & 0x0F) | ((packed.hi().to_bits() & 0x0F) << 4);
+            assert_eq!(reconstructed, byte, "roundtrip failed for 0x{byte:02X}");
+        }
+    }
+
+    #[test]
+    fn nvidia_packing_layout() {
+        let packed = F4E2M1x2::from_bits(0xA5);
+        assert_eq!(packed.lo().to_bits(), 0x5);
+        assert_eq!(packed.hi().to_bits(), 0xA);
+    }
+
+    #[test]
+    fn zero_constant() {
+        assert_eq!(F4E2M1x2::ZERO.to_bits(), 0x00);
+        assert_eq!(F4E2M1x2::ZERO.lo().to_f64(), 0.0);
+        assert_eq!(F4E2M1x2::ZERO.hi().to_f64(), 0.0);
+    }
+
+    #[test]
+    fn new_constructor() {
+        let packed = F4E2M1x2::new(F4E2M1::from_bits(0x5), F4E2M1::from_bits(0xA));
+        assert_eq!(packed.to_bits(), 0xA5);
+    }
+
+    #[test]
+    fn from_into_tuple() {
+        let lo = F4E2M1::from_bits(0x3);
+        let hi = F4E2M1::from_bits(0xC);
+        let packed = F4E2M1x2::from((lo, hi));
+        let (lo2, hi2): (F4E2M1, F4E2M1) = packed.into();
+        assert_eq!(lo2.to_bits(), lo.to_bits());
+        assert_eq!(hi2.to_bits(), hi.to_bits());
+    }
+
+    #[test]
+    fn display() {
+        let packed = F4E2M1x2::new(F4E2M1::from_f64(1.5), F4E2M1::from_f64(-2.0));
+        assert_eq!(format!("{packed}"), "F4E2M1x2(1.5, -2)");
+    }
+}

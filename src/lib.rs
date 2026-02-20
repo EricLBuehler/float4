@@ -111,9 +111,11 @@
 
 mod block;
 mod cvt;
+mod fp4x2;
 mod m8e0;
 
 pub use block::MXFP4Block;
+pub use fp4x2::F4E2M1x2;
 pub use m8e0::E8M0;
 
 /// A 4-bit floating point type with 2 exponent bits and 1 mantissa bit.
