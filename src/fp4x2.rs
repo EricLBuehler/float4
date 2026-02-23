@@ -65,6 +65,42 @@ impl F4E2M1x2 {
     pub const fn hi(self) -> F4E2M1 {
         F4E2M1::from_bits((self.0 >> 4) & 0x0F)
     }
+
+    /// Creates a packed pair by converting two `f32` values to [`F4E2M1`].
+    ///
+    /// Each value is independently rounded to the nearest representable
+    /// F4E2M1 value using round-to-nearest-even.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use float4::F4E2M1x2;
+    ///
+    /// let packed = F4E2M1x2::from_f32_pair(1.5, -2.0);
+    /// assert_eq!(packed.lo().to_f64(), 1.5);
+    /// assert_eq!(packed.hi().to_f64(), -2.0);
+    /// ```
+    #[inline]
+    pub fn from_f32_pair(a: f32, b: f32) -> Self {
+        Self::new(F4E2M1::from_f64(a as f64), F4E2M1::from_f64(b as f64))
+    }
+
+    /// Extracts both values as an `(f32, f32)` pair.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use float4::F4E2M1x2;
+    ///
+    /// let packed = F4E2M1x2::from_f32_pair(3.0, -0.5);
+    /// let (a, b) = packed.to_f32_pair();
+    /// assert_eq!(a, 3.0);
+    /// assert_eq!(b, -0.5);
+    /// ```
+    #[inline]
+    pub fn to_f32_pair(self) -> (f32, f32) {
+        (self.lo().to_f64() as f32, self.hi().to_f64() as f32)
+    }
 }
 
 impl From<(F4E2M1, F4E2M1)> for F4E2M1x2 {
@@ -168,5 +204,21 @@ mod tests {
     fn display() {
         let packed = F4E2M1x2::new(F4E2M1::from_f64(1.5), F4E2M1::from_f64(-2.0));
         assert_eq!(format!("{packed}"), "F4E2M1x2(1.5, -2)");
+    }
+
+    #[test]
+    fn f32_pair_roundtrip() {
+        // All exactly-representable F4E2M1 values as f32
+        let representable: &[f32] = &[
+            0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
+        ];
+        for &a in representable {
+            for &b in representable {
+                let packed = F4E2M1x2::from_f32_pair(a, b);
+                let (ra, rb) = packed.to_f32_pair();
+                assert_eq!(ra, a, "lo mismatch for pair ({a}, {b})");
+                assert_eq!(rb, b, "hi mismatch for pair ({a}, {b})");
+            }
+        }
     }
 }

@@ -118,6 +118,71 @@ pub use block::MXFP4Block;
 pub use fp4x2::F4E2M1x2;
 pub use m8e0::E8M0;
 
+/// Packs individual [`F4E2M1`] values into [`F4E2M1x2`] pairs.
+///
+/// If `values.len()` is odd, the last element is paired with
+/// [`F4E2M1::ZERO`] as padding.
+///
+/// # Examples
+///
+/// ```
+/// use float4::{F4E2M1, F4E2M1x2, pack, unpack};
+///
+/// let values = vec![
+///     F4E2M1::from_f64(1.5),
+///     F4E2M1::from_f64(-2.0),
+///     F4E2M1::from_f64(3.0),
+/// ];
+/// let packed = pack(&values);
+/// assert_eq!(packed.len(), 2); // 3 values → 2 bytes (last padded)
+/// assert_eq!(packed[0].lo().to_f64(), 1.5);
+/// assert_eq!(packed[0].hi().to_f64(), -2.0);
+/// assert_eq!(packed[1].lo().to_f64(), 3.0);
+/// assert_eq!(packed[1].hi().to_f64(), 0.0); // zero-padded
+/// ```
+pub fn pack(values: &[F4E2M1]) -> Vec<F4E2M1x2> {
+    values
+        .chunks(2)
+        .map(|chunk| {
+            let lo = chunk[0];
+            let hi = if chunk.len() == 2 {
+                chunk[1]
+            } else {
+                F4E2M1::ZERO
+            };
+            F4E2M1x2::new(lo, hi)
+        })
+        .collect()
+}
+
+/// Unpacks [`F4E2M1x2`] pairs into individual [`F4E2M1`] values.
+///
+/// Each packed byte produces exactly two values. To recover the original
+/// count when the input had an odd length, the caller should truncate the
+/// result as needed.
+///
+/// # Examples
+///
+/// ```
+/// use float4::{F4E2M1, F4E2M1x2, unpack};
+///
+/// let packed = vec![
+///     F4E2M1x2::new(F4E2M1::from_f64(1.0), F4E2M1::from_f64(2.0)),
+/// ];
+/// let values = unpack(&packed);
+/// assert_eq!(values.len(), 2);
+/// assert_eq!(values[0].to_f64(), 1.0);
+/// assert_eq!(values[1].to_f64(), 2.0);
+/// ```
+pub fn unpack(packed: &[F4E2M1x2]) -> Vec<F4E2M1> {
+    let mut result = Vec::with_capacity(packed.len() * 2);
+    for &pair in packed {
+        result.push(pair.lo());
+        result.push(pair.hi());
+    }
+    result
+}
+
 /// A 4-bit floating point type with 2 exponent bits and 1 mantissa bit.
 ///
 /// This type implements the E2M1 format from the OCP MX specification, providing
@@ -642,5 +707,68 @@ mod test {
         // NaN should become positive max (6.0) according to the implementation
         let fp4 = F4E2M1::from_f64(f64::NAN);
         assert_eq!(fp4.to_f64(), 6.0);
+    }
+}
+
+#[cfg(test)]
+mod pack_tests {
+    use crate::{F4E2M1, pack, unpack};
+
+    #[test]
+    fn empty_slice() {
+        let packed = pack(&[]);
+        assert!(packed.is_empty());
+        let unpacked = unpack(&packed);
+        assert!(unpacked.is_empty());
+    }
+
+    #[test]
+    fn even_length_roundtrip() {
+        let values: Vec<F4E2M1> = (0..8).map(F4E2M1::from_bits).collect();
+        let packed = pack(&values);
+        assert_eq!(packed.len(), 4);
+        let unpacked = unpack(&packed);
+        assert_eq!(unpacked.len(), 8);
+        for (i, (a, b)) in values.iter().zip(unpacked.iter()).enumerate() {
+            assert_eq!(a.to_bits(), b.to_bits(), "mismatch at index {i}");
+        }
+    }
+
+    #[test]
+    fn odd_length_pads_with_zero() {
+        let values = vec![
+            F4E2M1::from_f64(1.0),
+            F4E2M1::from_f64(2.0),
+            F4E2M1::from_f64(3.0),
+        ];
+        let packed = pack(&values);
+        assert_eq!(packed.len(), 2);
+
+        let unpacked = unpack(&packed);
+        assert_eq!(unpacked.len(), 4); // includes the zero pad
+        assert_eq!(unpacked[0].to_f64(), 1.0);
+        assert_eq!(unpacked[1].to_f64(), 2.0);
+        assert_eq!(unpacked[2].to_f64(), 3.0);
+        assert_eq!(unpacked[3].to_f64(), 0.0); // padding
+    }
+
+    #[test]
+    fn single_element() {
+        let values = vec![F4E2M1::from_f64(6.0)];
+        let packed = pack(&values);
+        assert_eq!(packed.len(), 1);
+        assert_eq!(packed[0].lo().to_f64(), 6.0);
+        assert_eq!(packed[0].hi().to_f64(), 0.0);
+    }
+
+    #[test]
+    fn all_values_roundtrip() {
+        // Pack all 16 possible values
+        let values: Vec<F4E2M1> = (0..16).map(F4E2M1::from_bits).collect();
+        let packed = pack(&values);
+        let unpacked = unpack(&packed);
+        for (i, (a, b)) in values.iter().zip(unpacked.iter()).enumerate() {
+            assert_eq!(a.to_bits(), b.to_bits(), "mismatch at index {i}");
+        }
     }
 }
