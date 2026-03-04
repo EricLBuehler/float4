@@ -7,8 +7,14 @@
 //! # Available Types
 //!
 //! - [`F4E2M1`]: 4-bit floating-point with 2 exponent bits and 1 mantissa bit
+//! - [`F4E2M1x2`]: Two [`F4E2M1`] values packed into a single byte (NVIDIA `__nv_fp4x2_e2m1` layout)
 //! - [`E8M0`]: 8-bit scale factor representing powers of two (2^-127 to 2^127)
 //! - [`MXFP4Block`]: Block format storing 32 F4E2M1 values with a shared E8M0 scale
+//!
+//! # Packing Utilities
+//!
+//! - [`pack`]: Packs a slice of [`F4E2M1`] values into [`F4E2M1x2`] pairs
+//! - [`unpack`]: Unpacks [`F4E2M1x2`] pairs back into individual [`F4E2M1`] values
 //!
 //! # F4E2M1 Format Details
 //!
