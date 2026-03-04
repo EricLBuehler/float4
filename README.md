@@ -7,6 +7,7 @@ This crate provides low-precision floating-point types following the OCP MX spec
 ## Available Types
 
 - **`F4E2M1`**: 4-bit floating-point with 2 exponent bits and 1 mantissa bit
+- **`F4E2M1x2`**: Packed pair of two F4E2M1 values in a single byte (NVIDIA `__nv_fp4x2_e2m1` compatible)
 - **`E8M0`**: 8-bit scale factor representing powers of two (2^-127 to 2^127)
 - **`MXFP4Block`**: Block format storing 32 F4E2M1 values with a shared E8M0 scale
 
@@ -16,6 +17,8 @@ This crate provides low-precision floating-point types following the OCP MX spec
 - **IEEE 754 compliant rounding**: Round-to-nearest-even for F4E2M1
 - **Power-of-two scales**: E8M0 provides exact scaling without rounding errors
 - **Efficient block storage**: Pack multiple values with shared scale factor
+- **NVIDIA compatible packing**: F4E2M1x2 matches `__nv_fp4x2_e2m1` layout for zero-copy CUDA interop
+- **Pack/unpack utilities**: Convert between F4E2M1 slices and packed F4E2M1x2 vectors
 - **Comprehensive API**: Conversions, constants, and trait implementations
 
 ## Quick Start
@@ -24,7 +27,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-float4 = "0.1"
+float4 = "0.2"
 ```
 
 ## Example Usage
@@ -50,6 +53,36 @@ assert_eq!(sum.to_f64(), 5.0); // May round to nearest representable value
 assert_eq!(F4E2M1::MAX.to_f64(), 6.0);
 assert_eq!(F4E2M1::MIN.to_f64(), -6.0);
 assert_eq!(F4E2M1::EPSILON.to_f64(), 0.5);
+```
+
+### Packed Pairs (F4E2M1x2)
+
+Two F4E2M1 values packed into a single byte, matching NVIDIA's `__nv_fp4x2_e2m1` layout (lower nibble = first value, upper nibble = second value):
+
+```rust
+use float4::{F4E2M1, F4E2M1x2, pack, unpack};
+
+// Pack two values into one byte
+let pair = F4E2M1x2::new(F4E2M1::from_f64(1.5), F4E2M1::from_f64(-2.0));
+assert_eq!(pair.lo().to_f64(), 1.5);
+assert_eq!(pair.hi().to_f64(), -2.0);
+
+// Convert from f32 pairs directly
+let pair = F4E2M1x2::from_f32_pair(3.0, 0.5);
+let (a, b) = pair.to_f32_pair();
+assert_eq!(a, 3.0);
+assert_eq!(b, 0.5);
+
+// Pack a slice of F4E2M1 values into pairs
+let values = vec![
+    F4E2M1::from_f64(1.0),
+    F4E2M1::from_f64(2.0),
+    F4E2M1::from_f64(3.0),
+    F4E2M1::from_f64(4.0),
+];
+let packed = pack(&values);   // [F4E2M1x2(1.0, 2.0), F4E2M1x2(3.0, 4.0)]
+let unpacked = unpack(&packed); // [1.0, 2.0, 3.0, 4.0]
+assert_eq!(values, unpacked);
 ```
 
 ### Block Format Example
